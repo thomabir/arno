@@ -3,9 +3,9 @@
 My houseplants in Lechuza pots tend to dry out when I'm on holiday for more than a week.
 I'm building a device that can measure when the water reservoir is dry, and pump in more from a bigger container.
 
-Status: First hardware tests done (water sensor works, pump pumps)
+Status: HomeKit MVP working on the device. Exposes a "Water now" valve (with auto-shutoff and overflow guard), a moisture reading for the bottom reservoir probe, and an overflow leak alarm for the top probe, all controllable from Apple Home.
 
-Next steps: Control via Apple Home, water a plant
+Next steps: On-device auto-watering (water when the bottom probe is dry, with min-interval and overflow safety) so it runs unattended on holiday.
 
 ## Goal
 
@@ -30,3 +30,5 @@ I can go on holiday for three weeks, and my plants remain well hydrated.
 ## Notes
 
 - ESP32 programmed via PlatformIO
+- Native HomeKit via the HomeSpan library (no bridge or cloud). WiFi credentials and pairing are set over the serial monitor using HomeSpan's setup CLI; the pairing code and QR are printed there on first boot.
+- Earlier standalone hardware-test sketches are kept in [esp32/scratch/](esp32/scratch/) for reference.
