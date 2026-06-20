@@ -35,6 +35,7 @@ struct PlantValve : Service::Valve {
   SpanCharacteristic* setDuration;
   SpanCharacteristic* remainingDuration;
   uint32_t endTime = 0;
+  bool pumping = false;
 
   PlantValve() : Service::Valve() {
     active = new Characteristic::Active(0);
@@ -47,6 +48,7 @@ struct PlantValve : Service::Valve {
   boolean update() override {
     if (active->updated()) {
       if (active->getNewVal()) {
+        if (pumping) return true;  // already running; ignore a repeated on-write
         if (sensorWet(PIN_SENSOR_TOP)) {
           Serial.println("Refusing to water: top reservoir sensor is wet.");
           WEBLOG("Refused watering: top reservoir wet");
@@ -55,6 +57,7 @@ struct PlantValve : Service::Valve {
         uint32_t dur = setDuration->getVal();
         if (dur == 0 || dur > MAX_RUNTIME_S) dur = MAX_RUNTIME_S;
         endTime = millis() + dur * 1000UL;
+        pumping = true;
         inUse->setVal(1);
         remainingDuration->setVal(dur);
         pumpOn();
@@ -87,6 +90,8 @@ struct PlantValve : Service::Valve {
   }
 
   void stopWatering(const char* reason) {
+    if (!pumping) return;  // already stopped; avoid a duplicate log entry
+    pumping = false;
     pumpOff();
     if (active->getVal()) active->setVal(0);
     if (inUse->getVal()) inUse->setVal(0);
