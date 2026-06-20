@@ -49,6 +49,7 @@ struct PlantValve : Service::Valve {
       if (active->getNewVal()) {
         if (sensorWet(PIN_SENSOR_TOP)) {
           Serial.println("Refusing to water: top reservoir sensor is wet.");
+          WEBLOG("Refused watering: top reservoir wet");
           return false;
         }
         uint32_t dur = setDuration->getVal();
@@ -58,8 +59,9 @@ struct PlantValve : Service::Valve {
         remainingDuration->setVal(dur);
         pumpOn();
         Serial.printf("Watering for %u s\n", dur);
+        WEBLOG("Watering started: %u s (manual)", dur);
       } else {
-        stopWatering();
+        stopWatering("stopped by user");
       }
     }
     return true;
@@ -70,12 +72,12 @@ struct PlantValve : Service::Valve {
 
     if (sensorWet(PIN_SENSOR_TOP)) {
       Serial.println("Top sensor wet mid-run, stopping pump.");
-      stopWatering();
+      stopWatering("top reservoir wet mid-run");
       return;
     }
     if (millis() >= endTime) {
       Serial.println("Watering timer elapsed, stopping pump.");
-      stopWatering();
+      stopWatering("timer elapsed");
       return;
     }
 
@@ -84,11 +86,12 @@ struct PlantValve : Service::Valve {
       remainingDuration->setVal(remaining);
   }
 
-  void stopWatering() {
+  void stopWatering(const char* reason) {
     pumpOff();
     if (active->getVal()) active->setVal(0);
     if (inUse->getVal()) inUse->setVal(0);
     remainingDuration->setVal(0);
+    WEBLOG("Watering stopped: %s", reason);
   }
 };
 
@@ -107,8 +110,10 @@ struct OverflowSensor : Service::LeakSensor {
     if (millis() - lastCheck < 1000) return;
     lastCheck = millis();
     bool wet = sensorWet(pin);
-    if (wet != (bool)leak->getVal())
+    if (wet != (bool)leak->getVal()) {
       leak->setVal(wet ? 1 : 0);
+      WEBLOG("Top reservoir %s", wet ? "wet (overflow)" : "dry");
+    }
   }
 };
 
@@ -128,8 +133,10 @@ struct MoistureSensor : Service::HumiditySensor {
     if (millis() - lastCheck < 1000) return;
     lastCheck = millis();
     float wet = sensorWet(pin) ? 100 : 0;
-    if (wet != level->getVal<float>())
+    if (wet != level->getVal<float>()) {
       level->setVal(wet);
+      WEBLOG("Bottom reservoir %s", wet > 0 ? "wet" : "dry");
+    }
   }
 };
 
@@ -145,7 +152,14 @@ void setup() {
   }
   pumpOff();
 
+  // Timestamped event log served on the local network at the URL printed below
+  // on boot. RAM-only: the last 50 entries, cleared on reboot or power loss.
+  homeSpan.enableWebLog(50, "pool.ntp.org", "CET-1CEST,M3.5.0,M10.5.0/3", "log");
+
   homeSpan.begin(Category::Bridges, "Arno");
+
+  WEBLOG("Arno booted (bottom probe GPIO%d, top probe GPIO%d)",
+         PIN_SENSOR_BOTTOM, PIN_SENSOR_TOP);
 
   new SpanAccessory();
     new Service::AccessoryInformation();
